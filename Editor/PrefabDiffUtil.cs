@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
@@ -9,32 +7,62 @@ namespace Yorozu.PrefabDiffViewer
 {
 	internal static class PrefabDiffUtil
 	{
-		internal static PrefabDiff GetDiff(GameObject current, string currentPath, GameObject prev, string prevPath)
+		/// <summary>
+		/// Prefab の diff データを作成
+		/// </summary>
+		internal static PrefabDiff GetDiff(GameObject target)
 		{
-			var diff = new PrefabDiff();
-			var info = Recursive(current.transform, TargetFlag.Add);
-			// 混ぜる
-			AddRecursive(prev.transform, ref info);
+			var path = AssetDatabase.GetAssetPath(target);
+			var diff = Command.Exec($"git diff \'{path}\'");
 
-			var currentYaml = YamlParse(currentPath);
-			var prevYaml = YamlParse(prevPath);
-			CheckFieldDiff(info, currentYaml, prevYaml);
+			// 差分無し
+			if (string.IsNullOrEmpty(diff))
+			{
+				Debug.Log($"{path} is not edit");
+				return null;
+			}
 
-			diff.Root = info;
-			//diff.Display();
-			return diff;
+			var fileName = Path.GetFileNameWithoutExtension(path);
+			var extension = Path.GetExtension(path);
+			var dirName = Path.GetDirectoryName(path);
+			var tempPath = Path.Combine(dirName, fileName + "_temp" + extension);
+
+			// 修正前のデータを取得
+			var yaml = Command.Exec($"git show \'HEAD:{path}\'");
+
+			if (string.IsNullOrEmpty(yaml))
+				return null;
+
+			File.WriteAllText(tempPath, yaml);
+			AssetDatabase.Refresh();
+
+			PrefabDiff diffData = null;
+			var tempPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(tempPath);
+			if (tempPrefab != null)
+			{
+				var info = Recursive(target.transform, TargetFlag.Add);
+				// 混ぜる
+				AddRecursive(tempPrefab.transform, ref info);
+
+				var currentYaml = PrefabYamlUtil.Parse(path);
+				var prevYaml = PrefabYamlUtil.Parse(tempPath);
+				CheckFieldDiff(info, currentYaml, prevYaml);
+
+				diffData = new PrefabDiff(info);
+			}
+
+			AssetDatabase.DeleteAsset(tempPath);
+			AssetDatabase.Refresh();
+
+			return diffData;
 		}
 
 		/// <summary>
-		/// Create Prefab Info
+		/// Create Prefab Data
 		/// </summary>
 		private static PrefabObject Recursive(Transform transform, TargetFlag flag)
 		{
-			var info = new PrefabObject
-			{
-				Name = transform.name,
-				Flag = flag,
-			};
+			var info = new PrefabObject(transform.name, flag);
 			{
 				if (AssetDatabase.TryGetGUIDAndLocalFileIdentifier(transform.gameObject, out string guid, out long id))
 				{
@@ -48,13 +76,7 @@ namespace Yorozu.PrefabDiffViewer
 				if (!AssetDatabase.TryGetGUIDAndLocalFileIdentifier(component, out string guid, out long id))
 					continue;
 
-				var c = new PrefabComponent
-				{
-					Type = component.GetType(),
-					ID = id,
-					Flag = flag,
-					GUID = guid,
-				};
+				var c = new PrefabComponent(component.GetType(), id, flag);
 				info.Components.Add(c);
 			}
 
@@ -68,7 +90,7 @@ namespace Yorozu.PrefabDiffViewer
 		}
 
 		/// <summary>
-		/// 追記
+		/// 差分確認
 		/// </summary>
 		private static void AddRecursive(Transform transform, ref PrefabObject info)
 		{
@@ -86,13 +108,7 @@ namespace Yorozu.PrefabDiffViewer
 					continue;
 				}
 
-				var c = new PrefabComponent
-				{
-					Type = component.GetType(),
-					ID = id,
-					Flag = TargetFlag.Sub,
-					GUID = guid,
-				};
+				var c = new PrefabComponent(component.GetType(), id, TargetFlag.Sub);
 				info.Components.Add(c);
 			}
 
@@ -118,71 +134,8 @@ namespace Yorozu.PrefabDiffViewer
 		}
 
 		/// <summary>
-		/// 適当パーサー
+		/// Yaml データを元に 値の変化を確認
 		/// </summary>
-		private static Yaml YamlParse(string path)
-		{
-			var text = File.ReadAllLines(path);
-			Debug.Log(string.Join("\n", text));
-			var yaml = new Yaml();
-			YamlComponent c = null;
-			YamlField f = null;
-			var isArray = false;
-			for (var i = 2; i < text.Length; i++)
-			{
-				// New Component
-				if (text[i].StartsWith("---"))
-				{
-					if (c != null)
-						yaml.Components.Add(c);
-
-					var index = text[i].IndexOf("&", StringComparison.Ordinal) + 1;
-					c = new YamlComponent(text[i].Substring(index));
-					continue;
-				}
-
-				// ComponentName
-				if (!text[i].StartsWith(" "))
-				{
-					c.Component = text[i].Substring(0, text[i].Length - 1);
-					continue;
-				}
-
-				var trim = text[i].Trim();
-				// インデントが変わっていたら Array の内部判定
-				if (isArray && (text[i].StartsWith("  - ") || text[i].StartsWith("    ")))
-				{
-					f.Values.Add(text[i].Substring(4));
-					continue;
-				}
-
-				isArray = false;
-
-				if (f != null)
-					c.Fields.Add(f);
-
-				// List or Array  stringで空の場合もある・・・
-				if (trim.EndsWith(":"))
-				{
-					f = new YamlField(trim.Substring(0, trim.Length - 1));
-					isArray = true;
-					continue;
-				}
-
-				var spIndex = trim.IndexOf(":", StringComparison.Ordinal);
-				f = new YamlField(trim.Substring(0, spIndex));
-				f.Values.Add(trim.Substring(spIndex + 2));
-			}
-
-			if (f != null)
-				c.Fields.Add(f);
-
-			if (c != null)
-				yaml.Components.Add(c);
-
-			return yaml;
-		}
-
 		private static void CheckFieldDiff(PrefabObject info, Yaml current, Yaml prev)
 		{
 			if (info.Flag != TargetFlag.None)
@@ -205,163 +158,5 @@ namespace Yorozu.PrefabDiffViewer
 				CheckFieldDiff(c, current, prev);
 			}
 		}
-	}
-
-	internal enum TargetFlag
-	{
-		None = 0,
-		Add = 1,
-		Sub = 2,
-		Modify = 4,
-	}
-
-	internal class PrefabDiff
-	{
-		internal PrefabObject Root = new PrefabObject();
-
-		internal void Display()
-		{
-			Root.Display();
-		}
-
-		internal DiffTreeViewItem Convert()
-		{
-			return Root.Convert();
-		}
-	}
-
-	internal class PrefabObject
-	{
-		internal TargetFlag Flag;
-		internal string Name;
-		internal long ID;
-		internal List<PrefabObject> Child = new List<PrefabObject>();
-		internal List<PrefabComponent> Components = new List<PrefabComponent>();
-
-		internal void Display()
-		{
-			Debug.Log($"----{Name} {Flag}");
-			Debug.Log($"--------Components");
-			foreach (var component in Components)
-			{
-				Debug.Log($"-------------{component.Name} {component.Flag} {component.Diffs.Count}");
-				foreach (var diff in component.Diffs)
-				{
-					Debug.Log($"---------diff {diff.Name}");
-				}
-
-			}
-			foreach (var c in Child)
-			{
-				c.Display();
-			}
-		}
-
-		internal DiffTreeViewItem Convert()
-		{
-			var root = new DiffTreeViewItem()
-			{
-				id = (int) ID,
-				displayName = Name,
-			};
-			root.SetUp(Flag, Components);
-
-			foreach (var c in Child)
-			{
-				var child = c.Convert();
-				root.AddChild(child);
-			}
-
-			return root;
-		}
-	}
-
-	internal class PrefabComponent
-	{
-		internal TargetFlag Flag;
-		internal long ID;
-		internal string GUID;
-		internal string Name => Type.Name;
-		internal List<PrefabField> Diffs = new List<PrefabField>();
-		internal Type Type;
-
-		/// <summary>
-		/// 差分のあるフィールドを検索して追加
-		/// </summary>
-		internal void AddDiffField(List<YamlField> current, List<YamlField> prev)
-		{
-			foreach (var field in current)
-			{
-				var index = prev.FindIndex(f => f.Name == field.Name);
-				var f = new PrefabField(field.Name);
-				if (index < 0)
-				{
-					f.CurrentValues = field.Values;
-				}
-				else
-				{
-					var pf = prev[index];
-					// あった場合は値の確認
-					if (field.Values.Count != pf.Values.Count)
-					{
-						f.CurrentValues = field.Values;
-						f.PrevValues = pf.Values;
-					}
-					else
-					{
-						for (var i = 0; i < field.Values.Count; i++)
-						{
-							if (field.Values[i] != pf.Values[i])
-							{
-								f.CurrentValues.Add(field.Values[i]);
-								f.PrevValues.Add(pf.Values[i]);
-							}
-						}
-					}
-				}
-				if (f.CurrentValues.Count > 0 || f.PrevValues.Count > 0)
-					Diffs.Add(f);
-			}
-		}
-	}
-
-	internal class PrefabField
-	{
-		internal PrefabField(string name)
-		{
-			Name = name;
-		}
-
-		internal string Name;
-		internal List<string> CurrentValues = new List<string>();
-		internal List<string> PrevValues = new List<string>();
-	}
-
-	internal class Yaml
-	{
-		internal List<YamlComponent> Components = new List<YamlComponent>();
-	}
-
-	internal class YamlComponent
-	{
-		internal YamlComponent(string id)
-		{
-			ID = id;
-		}
-
-		internal string ID;
-		internal string Component;
-		internal List<YamlField> Fields = new List<YamlField>();
-	}
-
-	internal class YamlField
-	{
-		internal YamlField(string name)
-		{
-			Name = name;
-		}
-
-		internal string Name;
-		internal List<string> Values = new List<string>();
 	}
 }
