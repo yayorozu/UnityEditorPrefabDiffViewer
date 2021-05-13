@@ -29,7 +29,9 @@ namespace Yorozu.PrefabDiffViewer
 
 		private void Init()
 		{
-			_state ??= new TreeViewState();
+			if (_state == null)
+				_state = new TreeViewState();
+
 			if (_treeView == null)
 			{
 				_treeView = new DiffTreeView(_state);
@@ -44,11 +46,10 @@ namespace Yorozu.PrefabDiffViewer
 			var list = new List<string>{""};
 			foreach (var path in split)
 			{
-				if (path.Contains("Assets/") && path.EndsWith(".prefab"))
-				{
-					var index = path.IndexOf("Assets/");
-					list.Add(path.Substring(index));
-				}
+				if (!path.Contains("Assets/") || !path.EndsWith(".prefab"))
+					continue;
+
+				list.Add(path);
 			}
 
 			_diffPrefabPaths = list.ToArray();

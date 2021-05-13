@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 
 namespace Yorozu.PrefabDiffViewer
 {
@@ -11,13 +12,14 @@ namespace Yorozu.PrefabDiffViewer
 
 	internal class YamlComponent
 	{
-		internal string ID;
+		internal long ID;
 		internal string Component;
 		internal List<YamlField> Fields = new List<YamlField>();
 
 		internal YamlComponent(string id)
 		{
-			ID = id;
+			id = Regex.Replace(id, "([0-9]+) stripped", "$1");
+			long.TryParse(id, out ID);
 		}
 	}
 
@@ -44,10 +46,19 @@ namespace Yorozu.PrefabDiffViewer
 			YamlComponent c = null;
 			YamlField f = null;
 			var isArray = false;
+			var isField = false;
 			for (var i = 2; i < text.Length; i++)
 			{
+				if (isField && text[i].StartsWith("    "))
+				{
+					var count = f.Values.Count;
+					f.Values[count - 1] += text[i].Trim();
+					continue;
+				}
+
+				isField = false;
 				// New Component
-				if (text[i].StartsWith("---"))
+				if (text[i].StartsWith("--- !u!"))
 				{
 					if (c != null)
 						yaml.Components.Add(c);
@@ -88,6 +99,7 @@ namespace Yorozu.PrefabDiffViewer
 				var spIndex = trim.IndexOf(":", StringComparison.Ordinal);
 				f = new YamlField(trim.Substring(0, spIndex));
 				f.Values.Add(trim.Substring(spIndex + 2));
+				isField = true;
 			}
 
 			if (f != null)

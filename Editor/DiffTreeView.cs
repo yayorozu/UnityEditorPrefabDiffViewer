@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor.IMGUI.Controls;
+using UnityEngine;
 
 namespace Yorozu.PrefabDiffViewer
 {
@@ -30,8 +31,7 @@ namespace Yorozu.PrefabDiffViewer
 			var root = new TreeViewItem(-1, -1);
 			if (_diff != null)
 			{
-				var child = _diff.Convert();
-				root.AddChild(child);
+				root.AddChild(_diff.Convert());
 				SetupDepthsFromParentsAndChildren(root);
 			}
 			else
@@ -50,9 +50,19 @@ namespace Yorozu.PrefabDiffViewer
 			DoubleClickEvent?.Invoke(diffItem);
 		}
 
-		protected override bool CanChangeExpandedState(TreeViewItem item)
+		protected override void RowGUI(RowGUIArgs args)
 		{
-			return false;
+			var item = args.item as DiffTreeViewItem;
+			base.RowGUI(args);
+			if (item.SubIcon == null)
+				return;
+
+			var rect = new Rect(args.rowRect)
+			{
+				x = 0,
+				width = 18f,
+			};
+			GUI.DrawTexture(rect, item.SubIcon, ScaleMode.ScaleToFit);
 		}
 	}
 }

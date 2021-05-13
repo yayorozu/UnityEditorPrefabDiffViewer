@@ -10,17 +10,18 @@ namespace Yorozu.PrefabDiffViewer
 	internal class DiffTreeViewItem : TreeViewItem
 	{
 		private List<PrefabComponent> _components;
+		public Texture2D SubIcon;
 
-		internal void SetUp(TargetFlag flag, List<PrefabComponent> components)
+		internal void SetUp(TargetFlag flag, List<PrefabComponent> components, bool isNestedPrefab)
 		{
 			_components = components;
 			switch (flag)
 			{
 				case TargetFlag.Add:
-					icon = (Texture2D) Styles.AddContent.image;
+					SubIcon = (Texture2D) Styles.AddContent.image;
 					break;
 				case TargetFlag.Sub:
-					icon = (Texture2D) Styles.SubContent.image;
+					SubIcon = (Texture2D) Styles.SubContent.image;
 					break;
 				case TargetFlag.None:
 					// 追加削除が無い場合差分を見る
@@ -29,11 +30,12 @@ namespace Yorozu.PrefabDiffViewer
 						components.Any(c => c.Flag == TargetFlag.Sub) |
 						components.Any(c => c.Diffs.Count > 0);
 
-					icon = isModify
-						? (Texture2D) Styles.ModifyContent.image
-						: (Texture2D) Styles.EmptyContent.image;
+					if (isModify)
+						SubIcon = (Texture2D) Styles.ModifyContent.image;
 					break;
 			}
+
+			icon = isNestedPrefab ? Styles.NestedPrefabTexture : Styles.PrefabTexture;
 		}
 
 		/// <summary>

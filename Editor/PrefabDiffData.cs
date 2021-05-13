@@ -32,6 +32,7 @@ namespace Yorozu.PrefabDiffViewer
 		internal TargetFlag Flag;
 		internal string Name;
 		internal long ID;
+		internal bool IsNestedPrefab;
 		internal List<PrefabObject> Child = new List<PrefabObject>();
 		internal List<PrefabComponent> Components = new List<PrefabComponent>();
 
@@ -43,12 +44,12 @@ namespace Yorozu.PrefabDiffViewer
 
 		internal DiffTreeViewItem Convert()
 		{
-			var root = new DiffTreeViewItem()
+			var root = new DiffTreeViewItem
 			{
 				id = (int) ID,
 				displayName = Name,
 			};
-			root.SetUp(Flag, Components);
+			root.SetUp(Flag, Components, IsNestedPrefab);
 
 			foreach (var c in Child)
 			{
@@ -82,7 +83,7 @@ namespace Yorozu.PrefabDiffViewer
 		{
 			foreach (var field in current)
 			{
-				var index = prev.FindIndex(f => f.Name == field.Name);
+				var index = prev.FindIndex(pf => pf.Name == field.Name);
 				var f = new PrefabField(field.Name);
 				if (index < 0)
 				{

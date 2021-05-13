@@ -12,31 +12,47 @@ namespace Yorozu.PrefabDiffViewer
 		/// </summary>
 		internal static PrefabDiff GetDiff(string path)
 		{
-			var diff = Command.Exec($"git diff \'{path}\'");
+			// Unity内のパスへ変換
+			var assetPath = path;
+			if (!assetPath.StartsWith("Assets/"))
+			{
+				var index = path.IndexOf("Assets/");
+				assetPath = path.Substring(index);
+			}
+
+			var diff = Command.Exec($"git diff \'{assetPath}\'");
 			// 差分無し
 			if (string.IsNullOrEmpty(diff))
 			{
-				Debug.Log($"{path} is not edit");
+				Debug.Log($"{assetPath} is not Update");
 				return null;
 			}
 
-			var target = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+			var target = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
 			if (target == null)
 			{
-				Debug.Log($"{path} is illegal");
+				Debug.Log($"{assetPath} is illegal");
 				return null;
 			}
 
-			var fileName = Path.GetFileNameWithoutExtension(path);
-			var extension = Path.GetExtension(path);
-			var dirName = Path.GetDirectoryName(path);
+			var fileName = Path.GetFileNameWithoutExtension(assetPath);
+			var extension = Path.GetExtension(assetPath);
+			var dirName = Path.GetDirectoryName(assetPath);
 			var tempPath = Path.Combine(dirName, fileName + "_temp" + extension);
 
 			// 修正前のデータを取得
+			// ここはunity からのパスじゃなくてフルパスが必要
 			var yaml = Command.Exec($"git show \'HEAD:{path}\'");
-
 			if (string.IsNullOrEmpty(yaml))
-				return null;
+			{
+				// 一応両方で確認
+				yaml = Command.Exec($"git show \'HEAD:{assetPath}\'");
+				if (string.IsNullOrEmpty(yaml))
+				{
+					Debug.Log($"{assetPath} prev yaml is empty");
+					return null;
+				}
+			}
 
 			File.WriteAllText(tempPath, yaml);
 			AssetDatabase.Refresh();
@@ -49,7 +65,7 @@ namespace Yorozu.PrefabDiffViewer
 				// 混ぜる
 				AddRecursive(tempPrefab.transform, info);
 
-				var currentYaml = PrefabYamlUtil.Parse(path);
+				var currentYaml = PrefabYamlUtil.Parse(assetPath);
 				var prevYaml = PrefabYamlUtil.Parse(tempPath);
 				CheckFieldDiff(info, currentYaml, prevYaml);
 
@@ -75,6 +91,9 @@ namespace Yorozu.PrefabDiffViewer
 				}
 			}
 
+			var nestedRoot = PrefabUtility.GetNearestPrefabInstanceRoot(transform);
+			info.IsNestedPrefab = nestedRoot != null;
+
 			var components = transform.GetComponents<Component>();
 			foreach (var component in components)
 			{
@@ -88,7 +107,8 @@ namespace Yorozu.PrefabDiffViewer
 			var count = transform.childCount;
 			for (var i = 0; i < count; i++)
 			{
-				info.Child.Add(Recursive(transform.GetChild(i), flag));
+				var child = transform.GetChild(i);
+				info.Child.Add(Recursive(child, flag));
 			}
 
 			return info;
@@ -106,7 +126,7 @@ namespace Yorozu.PrefabDiffViewer
 				if (!AssetDatabase.TryGetGUIDAndLocalFileIdentifier(component, out var guid, out long id))
 					continue;
 
-				var index = info.Components.FindIndex(c => c.ID == id);
+				var index = info.Components.FindIndex(cc => cc.ID == id);
 				if (index >= 0)
 				{
 					info.Components[index].Flag = TargetFlag.None;
@@ -150,8 +170,15 @@ namespace Yorozu.PrefabDiffViewer
 				if (component.Flag != TargetFlag.None)
 					continue;
 
-				var c = current.Components.First(c => c.ID == component.ID.ToString());
-				var p = prev.Components.First(c => c.ID == component.ID.ToString());
+				var c = current.Components.FirstOrDefault(cc => cc.ID == component.ID);
+				var p = prev.Components.FirstOrDefault(cc => cc.ID == component.ID);
+				// NestedPrefab は yaml にない
+				if (c == null || p == null)
+				{
+					Debug.Log($"{component.ID} is not find in yaml");
+					continue;
+				}
+
 				component.AddDiffField(c.Fields, p.Fields);
 				if (component.Diffs.Count > 0)
 					component.Flag |= TargetFlag.Modify;
