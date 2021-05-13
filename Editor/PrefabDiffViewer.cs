@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using UnityEditor.IMGUI.Controls;
@@ -13,12 +15,17 @@ namespace Yorozu.PrefabDiffViewer
 			window.Show();
 		}
 
-		private GameObject _diffCheckPrefab;
-
 		[SerializeField]
 		private TreeViewState _state;
 		private DiffTreeView _treeView;
 		private DiffTreeViewItem _currentItem;
+		private string[] _diffPrefabPaths;
+		private int _prefabIndex;
+
+		private void OnEnable()
+		{
+			FindDiffPrefabs();
+		}
 
 		private void Init()
 		{
@@ -30,13 +37,39 @@ namespace Yorozu.PrefabDiffViewer
 			}
 		}
 
+		private void FindDiffPrefabs()
+		{
+			var log = Command.Exec("git diff --name-only");
+			var split =log.Split('\n');
+			var list = new List<string>{""};
+			foreach (var path in split)
+			{
+				if (path.Contains("Assets/") && path.EndsWith(".prefab"))
+				{
+					var index = path.IndexOf("Assets/");
+					list.Add(path.Substring(index));
+				}
+			}
+
+			_diffPrefabPaths = list.ToArray();
+			if (_prefabIndex > _diffPrefabPaths.Length)
+				_prefabIndex = 0;
+		}
+
 		private void OnGUI()
 		{
 			Init();
 
-			_diffCheckPrefab =
-				(GameObject) EditorGUILayout.ObjectField("Check Prefab", _diffCheckPrefab, typeof(GameObject), false);
-			if (GUILayout.Button("Check"))
+			using (new EditorGUILayout.HorizontalScope())
+			{
+				_prefabIndex = EditorGUILayout.Popup("Check Prefab", _prefabIndex, _diffPrefabPaths);
+				if (GUILayout.Button("Reload", GUILayout.Width(100)))
+				{
+					FindDiffPrefabs();
+				}
+			}
+
+			if (GUILayout.Button("Check Diff"))
 			{
 				CheckDiff();
 			}
@@ -66,10 +99,13 @@ namespace Yorozu.PrefabDiffViewer
 
 		private void CheckDiff()
 		{
-			if (_diffCheckPrefab == null)
+			if (_prefabIndex > _diffPrefabPaths.Length)
 				return;
 
-			var diffData = PrefabDiffUtil.GetDiff(_diffCheckPrefab);
+			if (string.IsNullOrEmpty(_diffPrefabPaths[_prefabIndex]))
+				return;
+
+			var diffData = PrefabDiffUtil.GetDiff(_diffPrefabPaths[_prefabIndex]);
 			if (diffData != null)
 			{
 				_treeView.SetDiff(diffData);

@@ -10,15 +10,20 @@ namespace Yorozu.PrefabDiffViewer
 		/// <summary>
 		/// Prefab の diff データを作成
 		/// </summary>
-		internal static PrefabDiff GetDiff(GameObject target)
+		internal static PrefabDiff GetDiff(string path)
 		{
-			var path = AssetDatabase.GetAssetPath(target);
 			var diff = Command.Exec($"git diff \'{path}\'");
-
 			// 差分無し
 			if (string.IsNullOrEmpty(diff))
 			{
 				Debug.Log($"{path} is not edit");
+				return null;
+			}
+
+			var target = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+			if (target == null)
+			{
+				Debug.Log($"{path} is illegal");
 				return null;
 			}
 
