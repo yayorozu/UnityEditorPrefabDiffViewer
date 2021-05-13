@@ -42,7 +42,7 @@ namespace Yorozu.PrefabDiffViewer
 			{
 				var info = Recursive(target.transform, TargetFlag.Add);
 				// 混ぜる
-				AddRecursive(tempPrefab.transform, ref info);
+				AddRecursive(tempPrefab.transform, info);
 
 				var currentYaml = PrefabYamlUtil.Parse(path);
 				var prevYaml = PrefabYamlUtil.Parse(tempPath);
@@ -92,13 +92,13 @@ namespace Yorozu.PrefabDiffViewer
 		/// <summary>
 		/// 差分確認
 		/// </summary>
-		private static void AddRecursive(Transform transform, ref PrefabObject info)
+		private static void AddRecursive(Transform transform, PrefabObject info)
 		{
 			info.Flag = TargetFlag.None;
 			var components = transform.GetComponents<Component>();
 			foreach (var component in components)
 			{
-				if (!AssetDatabase.TryGetGUIDAndLocalFileIdentifier(component, out string guid, out long id))
+				if (!AssetDatabase.TryGetGUIDAndLocalFileIdentifier(component, out var guid, out long id))
 					continue;
 
 				var index = info.Components.FindIndex(c => c.ID == id);
@@ -116,19 +116,18 @@ namespace Yorozu.PrefabDiffViewer
 			for (var i = 0; i < count; i++)
 			{
 				var child = transform.GetChild(i);
-				if (!AssetDatabase.TryGetGUIDAndLocalFileIdentifier(transform.gameObject, out string guid, out long id))
+				if (!AssetDatabase.TryGetGUIDAndLocalFileIdentifier(child.gameObject, out var guid, out long id))
 					continue;
 
 				var index = info.Child.FindIndex(c => c.ID == id);
 				if (index >= 0)
 				{
-					var f = info.Child[index];
-					AddRecursive(child, ref f);
+					AddRecursive(child, info.Child[index]);
 				}
 				else
 				{
 					// 前にしかない
-					info.Child.Add(Recursive(transform.GetChild(i), TargetFlag.Sub));
+					info.Child.Add(Recursive(child, TargetFlag.Sub));
 				}
 			}
 		}
