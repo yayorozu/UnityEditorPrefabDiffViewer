@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Linq;
 using UnityEditor;
@@ -61,15 +62,23 @@ namespace Yorozu.PrefabDiffViewer
 			var tempPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(tempPath);
 			if (tempPrefab != null)
 			{
-				var info = Recursive(target.transform, TargetFlag.Add);
-				// 混ぜる
-				AddRecursive(tempPrefab.transform, info);
+				// エラーになると作成した Prefab 消せないので
+				try
+				{
+					var info = Recursive(target.transform, TargetFlag.Add);
+					// 混ぜる
+					AddRecursive(tempPrefab.transform, info);
 
-				var currentYaml = PrefabYamlUtil.Parse(assetPath);
-				var prevYaml = PrefabYamlUtil.Parse(tempPath);
-				CheckFieldDiff(info, currentYaml, prevYaml);
+					var currentYaml = PrefabYamlUtil.Parse(assetPath);
+					var prevYaml = PrefabYamlUtil.Parse(tempPath);
+					CheckFieldDiff(info, currentYaml, prevYaml);
 
-				diffData = new PrefabDiff(info);
+					diffData = new PrefabDiff(info);
+				}
+				catch
+				{
+					// ignored
+				}
 			}
 
 			AssetDatabase.DeleteAsset(tempPath);
