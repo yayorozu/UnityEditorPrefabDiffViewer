@@ -9,8 +9,10 @@ namespace Yorozu.PrefabDiffViewer
 {
 	internal class DiffTreeViewItem : TreeViewItem
 	{
+		internal Texture2D SubIcon;
+
 		private List<PrefabComponent> _components;
-		public Texture2D SubIcon;
+		private int _id;
 
 		internal void SetUp(TargetFlag flag, List<PrefabComponent> components, bool isNestedPrefab)
 		{
@@ -18,10 +20,10 @@ namespace Yorozu.PrefabDiffViewer
 			switch (flag)
 			{
 				case TargetFlag.Add:
-					SubIcon = (Texture2D) Styles.AddContent.image;
+					SubIcon = Styles.AddTexture;
 					break;
 				case TargetFlag.Sub:
-					SubIcon = (Texture2D) Styles.SubContent.image;
+					SubIcon = Styles.SubTexture;
 					break;
 				case TargetFlag.None:
 					// 追加削除が無い場合差分を見る
@@ -31,80 +33,91 @@ namespace Yorozu.PrefabDiffViewer
 						components.Any(c => c.Diffs.Count > 0);
 
 					if (isModify)
-						SubIcon = (Texture2D) Styles.ModifyContent.image;
+						SubIcon = Styles.ModifyTexture;
 					break;
 			}
 
 			icon = isNestedPrefab ? Styles.NestedPrefabTexture : Styles.PrefabTexture;
 		}
 
-		/// <summary>
-		/// EditorWindow描画
-		/// </summary>
-		internal void Draw()
+		private void ResetId()
 		{
-			using (new EditorGUILayout.VerticalScope())
-			{
-				EditorGUILayout.LabelField(displayName, Styles.HeaderBold);
-				GUILayout.Space(10);
-				DrawComponentDiff("Add Components", TargetFlag.Add, DrawComponents);
-				DrawComponentDiff("Sub Components", TargetFlag.Sub, DrawComponents);
-				DrawComponentDiff("Modify Components", TargetFlag.Modify, components =>
-				{
-					foreach (var component in components)
-					{
-						DrawComponent(component);
-						using (new EditorGUI.IndentLevelScope())
-						{
-							foreach (var diff in component.Diffs)
-							{
-								EditorGUILayout.LabelField($"{ObjectNames.NicifyVariableName(diff.Name)}");
-								using (new EditorGUI.IndentLevelScope())
-								{
-									foreach (var value in diff.PrevValues)
-									{
-										EditorGUILayout.LabelField(value);
-									}
-									EditorGUILayout.LabelField("↓");
-									foreach (var value in diff.CurrentValues)
-									{
-										EditorGUILayout.LabelField(value);
-									}
-								}
-							}
-						}
-					}
-				});
-			}
+			_id = 0;
 		}
 
-		private void DrawComponentDiff(string label, TargetFlag flag, Action<IEnumerable<PrefabComponent>> draw)
+		private int GetId() => _id++;
+
+		internal void SetChild(TreeViewItem root)
+		{
+			ResetId();
+			GetDiffItem(root, "Add Components", TargetFlag.Add, Styles.AddTexture);
+			GetDiffItem(root, "Sub Components", TargetFlag.Sub, Styles.SubTexture);
+			GetDiffItem(root, "Modify Components", TargetFlag.Modify, Styles.ModifyTexture, SetModifyValue);
+		}
+
+		private void GetDiffItem(
+			TreeViewItem root,
+			string label,
+			TargetFlag flag,
+			Texture2D texture,
+			Action<PrefabComponent, TreeViewItem> action = null
+		)
 		{
 			var finds = _components.Where(c => c.Flag == flag);
 			if (!finds.Any())
 				return;
 
-			EditorGUILayout.LabelField(label, EditorStyles.boldLabel);
-			using (new EditorGUI.IndentLevelScope())
+			var item = new TreeViewItem
 			{
-				draw?.Invoke(finds);
+				id = GetId(),
+				displayName = label,
+				icon = texture,
+			};
+
+			foreach (var find in finds)
+			{
+				var content = EditorGUIUtility.ObjectContent(null, find.Type);
+				var child = new TreeViewItem
+				{
+					id = GetId(),
+					displayName = find.Name,
+					icon = (Texture2D) content.image,
+				};
+
+				if (child.icon == null)
+					child.icon = Styles.ScriptTexture;
+
+				action?.Invoke(find, child);
+				item.AddChild(child);
 			}
-			GUILayout.Space(5);
+
+			root.AddChild(item);
 		}
 
-		private void DrawComponents(IEnumerable<PrefabComponent> components)
+		private void SetModifyValue(PrefabComponent component, TreeViewItem root)
 		{
-			foreach (var c in components)
+			foreach (var diff in component.Diffs)
 			{
-				DrawComponent(c);
-			}
-		}
+				var item = new TreeViewItem
+				{
+					id = GetId(),
+					displayName = ObjectNames.NicifyVariableName(diff.Name),
+					icon = Styles.InfoTexture,
+				};
 
-		private void DrawComponent(PrefabComponent component)
-		{
-			var content = EditorGUIUtility.ObjectContent(null, component.Type);
-			content.text = component.Name;
-			EditorGUILayout.LabelField(content);
+				foreach (var value in diff.PrevValues)
+				{
+					item.AddChild(new TreeViewItem {id = GetId(), displayName = value,});
+				}
+
+				item.AddChild(new TreeViewItem {id = GetId(), displayName = "↓",});
+				foreach (var value in diff.CurrentValues)
+				{
+					item.AddChild(new TreeViewItem {id = GetId(), displayName = value,});
+				}
+
+				root.AddChild(item);
+			}
 		}
 	}
 }

@@ -83,6 +83,10 @@ namespace Yorozu.PrefabDiffViewer
 		{
 			foreach (var field in current)
 			{
+				// 子供の変更は差分として出さない
+				if (field.Name == "m_Children")
+					continue;
+
 				var index = prev.FindIndex(pf => pf.Name == field.Name);
 				var f = new PrefabField(field.Name);
 				if (index < 0)

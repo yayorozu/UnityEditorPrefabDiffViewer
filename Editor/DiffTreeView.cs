@@ -18,12 +18,13 @@ namespace Yorozu.PrefabDiffViewer
 		public DiffTreeView(TreeViewState state, MultiColumnHeader multiColumnHeader) : base(state, multiColumnHeader) { }
 
 		private PrefabDiff _diff;
-		public event Action<DiffTreeViewItem> DoubleClickEvent;
+		public event Action<DiffTreeViewItem> DetailEvent;
 
 		internal void SetDiff(PrefabDiff diff)
 		{
 			_diff = diff;
 			Reload();
+			ExpandAll();
 		}
 
 		protected override TreeViewItem BuildRoot()
@@ -43,11 +44,14 @@ namespace Yorozu.PrefabDiffViewer
 
 		private TreeViewItem Find(int id) => GetRows().First(i => i.id == id);
 
-		protected override void DoubleClickedItem(int id)
+		protected override void SelectionChanged(IList<int> selectedIds)
 		{
-			var item = Find(id);
+			if (selectedIds == null || selectedIds.Count <= 0)
+				return;
+
+			var item = Find(selectedIds.First());
 			var diffItem = item as DiffTreeViewItem;
-			DoubleClickEvent?.Invoke(diffItem);
+			DetailEvent?.Invoke(diffItem);
 		}
 
 		protected override void RowGUI(RowGUIArgs args)

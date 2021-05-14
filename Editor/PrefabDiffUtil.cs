@@ -175,7 +175,6 @@ namespace Yorozu.PrefabDiffViewer
 				// NestedPrefab は yaml にない
 				if (c == null || p == null)
 				{
-					Debug.Log($"{component.ID} is not find in yaml");
 					continue;
 				}
 

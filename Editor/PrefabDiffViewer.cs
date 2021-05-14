@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
@@ -17,8 +16,12 @@ namespace Yorozu.PrefabDiffViewer
 
 		[SerializeField]
 		private TreeViewState _state;
+		[SerializeField]
+		private TreeViewState _state2;
+
 		private DiffTreeView _treeView;
-		private DiffTreeViewItem _currentItem;
+		private DetailTreeView _treeView2;
+
 		private string[] _diffPrefabPaths;
 		private int _prefabIndex;
 
@@ -31,11 +34,18 @@ namespace Yorozu.PrefabDiffViewer
 		{
 			if (_state == null)
 				_state = new TreeViewState();
+			if (_state2 == null)
+				_state2 = new TreeViewState();
 
 			if (_treeView == null)
 			{
 				_treeView = new DiffTreeView(_state);
-				_treeView.DoubleClickEvent += DoubleClickEvent;
+				_treeView.DetailEvent += DetailEvent;
+			}
+
+			if (_treeView2 == null)
+			{
+				_treeView2 = new DetailTreeView(_state2);
 			}
 		}
 
@@ -77,25 +87,18 @@ namespace Yorozu.PrefabDiffViewer
 
 			using (new EditorGUILayout.HorizontalScope())
 			{
-				var width = _currentItem != null ? position.width / 2f : position.width;
 				var rect = GUILayoutUtility.GetRect(
 					GUIContent.none,
 					GUIStyle.none,
 					GUILayout.ExpandHeight(true),
-					GUILayout.Width(width)
+					GUILayout.ExpandWidth(true)
 				);
+
+				rect.width /= 2f;
 				_treeView.OnGUI(rect);
-
-				DrawGameObject();
+				rect.x += rect.width;
+				_treeView2.OnGUI(rect);
 			}
-		}
-
-		private void DrawGameObject()
-		{
-			if (_currentItem == null)
-				return;
-
-			_currentItem.Draw();
 		}
 
 		private void CheckDiff()
@@ -113,9 +116,9 @@ namespace Yorozu.PrefabDiffViewer
 			}
 		}
 
-		private void DoubleClickEvent(DiffTreeViewItem item)
+		private void DetailEvent(DiffTreeViewItem item)
 		{
-			_currentItem = item;
+			_treeView2?.SetItem(item);
 		}
 	}
 }
