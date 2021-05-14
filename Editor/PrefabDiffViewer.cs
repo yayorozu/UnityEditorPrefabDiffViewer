@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
@@ -80,9 +81,27 @@ namespace Yorozu.PrefabDiffViewer
 				}
 			}
 
-			if (GUILayout.Button("Check Diff"))
+			using (new EditorGUILayout.HorizontalScope())
 			{
-				CheckDiff();
+				using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(_diffPrefabPaths[_prefabIndex])))
+				{
+					if (GUILayout.Button("Check Diff"))
+					{
+						CheckDiff();
+					}
+					if (GUILayout.Button("Select Prefab"))
+					{
+						var path = _diffPrefabPaths[_prefabIndex];
+						if (! path.StartsWith("Assets/"))
+						{
+							var index = path.IndexOf("Assets/", StringComparison.Ordinal);
+							path = path.Substring(index);
+						}
+
+						var obj = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+						Selection.objects = new[] {obj};
+					}
+				}
 			}
 
 			using (new EditorGUILayout.HorizontalScope())
