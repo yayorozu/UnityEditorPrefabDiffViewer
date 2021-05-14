@@ -7,8 +7,7 @@ namespace Yorozu.PrefabDiffViewer
 	internal static class Command
 	{
 		/// <summary>
-		///     パス一覧
-		///     環境変数から取得しようとしたが
+		/// パス一覧
 		/// </summary>
 		private static readonly string[] checkPaths =
 		{
@@ -30,10 +29,8 @@ namespace Yorozu.PrefabDiffViewer
 		}
 
 		/// <summary>
-		///     Path 内にバイナリがあるかチェック
+		/// Path 内にバイナリがあるかチェック
 		/// </summary>
-		/// <param name="command"></param>
-		/// <returns></returns>
 		private static string FindPath(string command)
 		{
 #if UNITY_EDITOR_OSX
@@ -52,10 +49,8 @@ namespace Yorozu.PrefabDiffViewer
 		}
 
 		/// <summary>
-		///     内部でコマンドをパース
+		/// 内部でコマンドをパース
 		/// </summary>
-		/// <param name="command"></param>
-		/// <returns></returns>
 		public static string Exec(string command)
 		{
 			command = command.Trim();
