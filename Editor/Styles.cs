@@ -1,3 +1,4 @@
+using System;
 using UnityEditor;
 using UnityEditor.Experimental;
 using UnityEngine;
@@ -18,16 +19,28 @@ namespace Yorozu.PrefabDiffViewer
 
 		static Styles()
 		{
-			AddTexture = EditorResources.Load<Texture2D>("CollabCreate Icon");
-			SubTexture = EditorResources.Load<Texture2D>("CollabDeleted Icon");
-			ModifyTexture = EditorResources.Load<Texture2D>("CollabChanges Icon");
-			PrefabTexture = EditorResources.Load<Texture2D>("GameObject Icon");
-			NestedPrefabTexture = EditorResources.Load<Texture2D>("Prefab Icon");
-			InfoTexture = EditorResources.Load<Texture2D>("CollabEdit Icon");
-			ScriptTexture = EditorResources.Load<Texture2D>("d_cs Script Icon");
+			AddTexture = Load("CollabCreate Icon");
+			SubTexture = Load("CollabDeleted Icon");
+			ModifyTexture = Load("CollabChanges Icon");
+			PrefabTexture = Load("GameObject Icon");
+			NestedPrefabTexture = Load("Prefab Icon");
+			InfoTexture = Load("CollabEdit Icon");
+			ScriptTexture = Load("d_cs Script Icon");
 
 			HeaderBold = new GUIStyle(EditorStyles.boldLabel);
 			HeaderBold.fontSize += 10;
+		}
+
+		private static Texture2D Load(string path)
+		{
+			try
+			{
+				return EditorResources.Load<Texture2D>(path);
+			}
+			catch
+			{
+				return null;
+			}
 		}
 	}
 }
